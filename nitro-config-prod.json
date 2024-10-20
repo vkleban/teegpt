@@ -1,0 +1,9 @@
+{
+    "enclave_name": "tlsnotary-prod",
+    "cpu_count": 2,
+    "memory_mib": 2000,
+    "eif_path": "./build/tlsnotary-prod.eif",
+    "debug_mode": false,
+    "enclave_cid": 16,
+    "attach_console": false
+}
