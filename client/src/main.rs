@@ -1,5 +1,5 @@
 use async_tungstenite::{tokio::client_async_with_config, tungstenite::protocol::WebSocketConfig};
-use remote_attestation_verifier::parse_verify_with;
+use remote_attestation_verifier::{ParseVerificationError, parse_verify_with, parse_document, parse_payload};
 use eyre::eyre;
 use std::io::Write;
 use hex;
@@ -205,6 +205,32 @@ async fn perform_attestation(
     // convert nonce to vec<u8>
     let nonce = hex::decode(nonce).unwrap();
 
+    // Get TLS certificate fingerprint.
+    let fingerprint_hex = get_tls_fingerprint(&tls_stream).await.unwrap();
+    info!(
+        "TLS certificate fingerprint (SHA-256): {}",
+        &fingerprint_hex
+    );
+
+    let attestation_document =
+        parse_document(&document_data).map_err(ParseVerificationError::ParseError)?;
+
+    let payload =
+        parse_payload(&attestation_document.payload).map_err(ParseVerificationError::ParseError)?;
+
+    // Convert the user_input to a hex string
+    let user_data_hex_string = match payload.user_data {
+        Some(data) => data[7..32+7]
+                            .iter()
+                            .map(|byte| format!("{:02x}", byte)) // format each byte as a 2-digit hex string
+                            .collect::<String>(), // Collect into a single string
+        None => return Err(eyre!("Unknown user_data in attestation document")) // Handle None case (empty string)
+    };
+    info!("SHA-256 tls cert fingerprint form user_data in attestation doc: {:?}", user_data_hex_string);
+    if fingerprint_hex != user_data_hex_string {
+        return Err(eyre!("TLS fingerprint mismatch"));
+    }
+
     match parse_verify_with(document_data, nonce, pcrs, unix_time as u64) {
         Ok(_) => (),
         Err(e) => panic!("parse_verify_with failed: {:?}", e.to_string()),
@@ -333,13 +359,6 @@ async fn run_verifier(
     let mut tls_stream = tls_connector.connect(domain, tcp_stream).await?;
 
     info!("TLS connection established.");
-
-    // Get TLS certificate fingerprint.
-    let fingerprint_hex = get_tls_fingerprint(&tls_stream).await.unwrap();
-    info!(
-        "TLS certificate fingerprint (SHA-256): {}",
-        &fingerprint_hex
-    );
 
     // Send an HTTP GET request to the attestation enclave using the endpoint `/enclave/attestation?nonce=xxxx` and retrieve the response text.
     debug!("Sending attestation request...");
