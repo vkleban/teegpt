@@ -43,6 +43,7 @@ However, by default, there's no mechanism to guarantee that the attestation docu
 Next, I address another issue: ensuring that the **TLS session terminates inside the enclave**. TEEProxy obtains a certificate from **Let's Encrypt** (via the ACME challenge) and adds the **certificate fingerprint** to the attestation document. This guarantees that the TLS session is securely terminated inside the enclave.
 
 ### Attestation Process Summary:
+![alt text](./Diagram.png)
 1. Call `/enclave/attestate?nonce=dead...` to retrieve the attestation document.
 2. Verify the document is signed by AWS.
 3. Confirm the document contains the correct nonce.
